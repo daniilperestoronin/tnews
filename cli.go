@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -25,7 +26,11 @@ func cliApp() *cli.App {
 			Action: func(c *cli.Context) error {
 				srcDir := getSrcDir(c)
 				l := checkLanguages(srcDir)
-				fmt.Println(l)
+				prettyJSON, err := json.MarshalIndent(l, "", "  ")
+				if err != nil {
+					log.Fatal("Failed to generate json", err)
+				}
+				fmt.Printf("%s\n", string(prettyJSON))
 				return nil
 			},
 		},
@@ -75,8 +80,8 @@ func getSrcDir(c *cli.Context) string {
 }
 
 type checkLanguagesStr struct {
-	langCode string   `json:"lang_code"`
-	articles []string `json:"articles"`
+	LangCode string   `json:"lang_code"`
+	Articles []string `json:"articles"`
 }
 
 func checkLanguages(filesPath string) []checkLanguagesStr {
@@ -105,8 +110,13 @@ func checkLanguages(filesPath string) []checkLanguagesStr {
 
 	l := []checkLanguagesStr{}
 
+	l = append(l, checkLanguagesStr{LangCode: "en", Articles: aLang["en"]})
+	delete(aLang, "en")
+	l = append(l, checkLanguagesStr{LangCode: "ru", Articles: aLang["ru"]})
+	delete(aLang, "ru")
+
 	for k, v := range aLang {
-		l = append(l, checkLanguagesStr{langCode: k, articles: v})
+		l = append(l, checkLanguagesStr{LangCode: k, Articles: v})
 	}
 
 	return l
