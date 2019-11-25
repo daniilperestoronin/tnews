@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/daniilperestoronin/tnews/classifier"
 	"github.com/daniilperestoronin/tnews/lang"
 	"github.com/daniilperestoronin/tnews/parse"
 	"github.com/urfave/cli"
@@ -38,7 +39,8 @@ func cliApp() *cli.App {
 			Name:  "news",
 			Usage: "Isolate news articles",
 			Action: func(c *cli.Context) error {
-				fmt.Println("")
+				srcDir := getSrcDir(c)
+				checkNews(srcDir)
 				return nil
 			},
 		},
@@ -120,4 +122,28 @@ func checkLanguages(filesPath string) []checkLanguagesStr {
 	}
 
 	return l
+}
+
+func checkNews(filesPath string) {
+	err := filepath.Walk(filesPath,
+		func(path string, info os.FileInfo, err error) error {
+			if err != nil {
+				return err
+			}
+			if info.Mode().IsRegular() {
+				b, err := ioutil.ReadFile(path)
+				if err != nil {
+					panic(err)
+				}
+				article := parse.ParseArticleFromHTMLFile(string(b))
+				if lang.DetectLanguage(article.Title+article.CleanedText) == "en" {
+					classifier.NewsClassifier(article.Title + article.CleanedText)
+				}
+			}
+			return nil
+		})
+
+	if err != nil {
+		log.Println(err)
+	}
 }
