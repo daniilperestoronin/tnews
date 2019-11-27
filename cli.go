@@ -40,7 +40,12 @@ func cliApp() *cli.App {
 			Usage: "Isolate news articles",
 			Action: func(c *cli.Context) error {
 				srcDir := getSrcDir(c)
-				checkNews(srcDir)
+				n := checkNews(srcDir)
+				prettyJSON, err := json.MarshalIndent(n, "", "  ")
+				if err != nil {
+					log.Fatal("Failed to generate json", err)
+				}
+				fmt.Printf("%s\n", string(prettyJSON))
 				return nil
 			},
 		},
@@ -48,7 +53,13 @@ func cliApp() *cli.App {
 			Name:  "categories",
 			Usage: "Group news articles by category",
 			Action: func(c *cli.Context) error {
-				fmt.Println("")
+				srcDir := getSrcDir(c)
+				n := checkNewsGroup(srcDir)
+				prettyJSON, err := json.MarshalIndent(n, "", "  ")
+				if err != nil {
+					log.Fatal("Failed to generate json", err)
+				}
+				fmt.Printf("%s\n", string(prettyJSON))
 				return nil
 			},
 		},
@@ -124,7 +135,12 @@ func checkLanguages(filesPath string) []checkLanguagesStr {
 	return l
 }
 
-func checkNews(filesPath string) {
+type newsArr struct {
+	Articles []string `json:"articles"`
+}
+
+func checkNews(filesPath string) newsArr {
+	articles := []string{}
 	err := filepath.Walk(filesPath,
 		func(path string, info os.FileInfo, err error) error {
 			if err != nil {
@@ -137,7 +153,9 @@ func checkNews(filesPath string) {
 				}
 				article := parse.ParseArticleFromHTMLFile(string(b))
 				if lang.DetectLanguage(article.Title+article.CleanedText) == "en" {
-					classifier.NewsClassifier(article.Title + article.CleanedText)
+					if classifier.NewsClassifier(article.Title + article.CleanedText) {
+						articles = append(articles, info.Name())
+					}
 				}
 			}
 			return nil
@@ -146,4 +164,48 @@ func checkNews(filesPath string) {
 	if err != nil {
 		log.Println(err)
 	}
+
+	return newsArr{Articles: articles}
+}
+
+type newsGroup struct {
+	Group    string   `json:"category"`
+	Articles []string `json:"articles"`
+}
+
+func checkNewsGroup(filesPath string) []newsGroup {
+	nGroup := make(map[string][]string)
+
+	err := filepath.Walk(filesPath,
+		func(path string, info os.FileInfo, err error) error {
+			if err != nil {
+				return err
+			}
+			if info.Mode().IsRegular() {
+				b, err := ioutil.ReadFile(path)
+				if err != nil {
+					panic(err)
+				}
+				article := parse.ParseArticleFromHTMLFile(string(b))
+				if lang.DetectLanguage(article.Title+article.CleanedText) == "en" {
+					if classifier.NewsClassifier(article.Title + article.CleanedText) {
+						group := classifier.NewsGroupClassifier(article.Title + article.CleanedText)
+						nGroup[group] = append(nGroup[group], info.Name())
+					}
+				}
+			}
+			return nil
+		})
+
+	if err != nil {
+		log.Println(err)
+	}
+
+	l := []newsGroup{}
+
+	for k, v := range nGroup {
+		l = append(l, newsGroup{Group: k, Articles: v})
+	}
+
+	return l
 }

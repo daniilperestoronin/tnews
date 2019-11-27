@@ -1,7 +1,6 @@
 package classifier
 
 import (
-	"fmt"
 	"strings"
 
 	"github.com/jbrukh/bayesian"
@@ -12,7 +11,7 @@ const (
 	NotNews bayesian.Class = "NotNews"
 )
 
-func NewsClassifier(tx string) {
+func NewsClassifier(tx string) bool {
 	clsf := bayesian.NewClassifierTfIdf(News, NotNews)
 
 	newsWords := []string{"tall", "rich", "handsome"}
@@ -25,7 +24,7 @@ func NewsClassifier(tx string) {
 
 	_, i, _ := clsf.LogScores(strings.Split(tx, " "))
 
-	fmt.Println(i)
+	return i == 0
 }
 
 const (
@@ -45,7 +44,7 @@ const (
 	Other bayesian.Class = "Other"
 )
 
-func NewsGroupClassifier(tx string) {
+func NewsGroupClassifier(tx string) string {
 	clsf := bayesian.NewClassifierTfIdf(Society, Economy, Technology, Sports, Entertainment, Science, Other)
 
 	societyWords := []string{"tall", "rich", "handsome"}
@@ -68,5 +67,20 @@ func NewsGroupClassifier(tx string) {
 
 	_, i, _ := clsf.LogScores(strings.Split(tx, " "))
 
-	fmt.Println(i)
+	switch i {
+	case 0:
+		return "society"
+	case 1:
+		return "economy"
+	case 2:
+		return "technology"
+	case 3:
+		return "sports"
+	case 4:
+		return "entertainment"
+	case 5:
+		return "science"
+	default:
+		return ""
+	}
 }
