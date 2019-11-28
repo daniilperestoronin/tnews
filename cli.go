@@ -25,13 +25,7 @@ func cliApp() *cli.App {
 			Name:  "languages",
 			Usage: "Isolate articles in English and Russian",
 			Action: func(c *cli.Context) error {
-				srcDir := getSrcDir(c)
-				l := checkLanguages(srcDir)
-				prettyJSON, err := json.MarshalIndent(l, "", "  ")
-				if err != nil {
-					log.Fatal("Failed to generate json", err)
-				}
-				fmt.Printf("%s\n", string(prettyJSON))
+				printResultJson(checkLanguages(getSrcDir(c)))
 				return nil
 			},
 		},
@@ -39,13 +33,7 @@ func cliApp() *cli.App {
 			Name:  "news",
 			Usage: "Isolate news articles",
 			Action: func(c *cli.Context) error {
-				srcDir := getSrcDir(c)
-				n := checkNews(srcDir)
-				prettyJSON, err := json.MarshalIndent(n, "", "  ")
-				if err != nil {
-					log.Fatal("Failed to generate json", err)
-				}
-				fmt.Printf("%s\n", string(prettyJSON))
+				printResultJson(checkNews(getSrcDir(c)))
 				return nil
 			},
 		},
@@ -53,13 +41,7 @@ func cliApp() *cli.App {
 			Name:  "categories",
 			Usage: "Group news articles by category",
 			Action: func(c *cli.Context) error {
-				srcDir := getSrcDir(c)
-				n := checkNewsGroup(srcDir)
-				prettyJSON, err := json.MarshalIndent(n, "", "  ")
-				if err != nil {
-					log.Fatal("Failed to generate json", err)
-				}
-				fmt.Printf("%s\n", string(prettyJSON))
+				printResultJson(checkNewsGroup(getSrcDir(c)))
 				return nil
 			},
 		},
@@ -67,7 +49,7 @@ func cliApp() *cli.App {
 			Name:  "threads",
 			Usage: "Group similar news into threads",
 			Action: func(c *cli.Context) error {
-				fmt.Println("")
+				printResultJson(checkNewsTreads(getSrcDir(c)))
 				return nil
 			},
 		},
@@ -75,21 +57,28 @@ func cliApp() *cli.App {
 			Name:  "top",
 			Usage: "Sort threads by their relative importance",
 			Action: func(c *cli.Context) error {
-				fmt.Println("")
+				printResultJson(checkNewsTreadsByCategory(getSrcDir(c)))
 				return nil
 			},
 		},
 	}
-
 	return app
 }
 
 func getSrcDir(c *cli.Context) string {
 	srcDir := c.Args().First()
 	if srcDir == "" {
-		fmt.Println("provide source_dir")
+		panic("provide source_dir")
 	}
 	return srcDir
+}
+
+func printResultJson(n interface{}) {
+	prettyJSON, err := json.MarshalIndent(n, "", "  ")
+	if err != nil {
+		log.Fatal("Failed to generate json", err)
+	}
+	fmt.Printf("%s\n", string(prettyJSON))
 }
 
 type checkLanguagesStr struct {
@@ -208,4 +197,17 @@ func checkNewsGroup(filesPath string) []newsGroup {
 	}
 
 	return l
+}
+
+type newsThread struct {
+	Title    string   `json:"title"`
+	Articles []string `json:"articles"`
+}
+
+func checkNewsTreads(filesPath string) []newsThread {
+	return nil
+}
+
+func checkNewsTreadsByCategory(filesPath string) []newsThread {
+	return nil
 }
