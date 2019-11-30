@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
-	"log"
 	"os"
 	"path/filepath"
 
@@ -25,7 +24,7 @@ func cliApp() *cli.App {
 			Name:  "languages",
 			Usage: "Isolate articles in English and Russian",
 			Action: func(c *cli.Context) error {
-				printResultJson(checkLanguages(getSrcDir(c)))
+				printResultJSON(checkLanguages(getSrcDir(c)))
 				return nil
 			},
 		},
@@ -33,7 +32,7 @@ func cliApp() *cli.App {
 			Name:  "news",
 			Usage: "Isolate news articles",
 			Action: func(c *cli.Context) error {
-				printResultJson(checkNews(getSrcDir(c)))
+				printResultJSON(checkNews(getSrcDir(c)))
 				return nil
 			},
 		},
@@ -41,7 +40,7 @@ func cliApp() *cli.App {
 			Name:  "categories",
 			Usage: "Group news articles by category",
 			Action: func(c *cli.Context) error {
-				printResultJson(checkNewsGroup(getSrcDir(c)))
+				printResultJSON(checkNewsGroup(getSrcDir(c)))
 				return nil
 			},
 		},
@@ -49,7 +48,7 @@ func cliApp() *cli.App {
 			Name:  "threads",
 			Usage: "Group similar news into threads",
 			Action: func(c *cli.Context) error {
-				printResultJson(checkNewsTreads(getSrcDir(c)))
+				printResultJSON(checkNewsTreads(getSrcDir(c)))
 				return nil
 			},
 		},
@@ -57,7 +56,7 @@ func cliApp() *cli.App {
 			Name:  "top",
 			Usage: "Sort threads by their relative importance",
 			Action: func(c *cli.Context) error {
-				printResultJson(checkNewsTreadsByCategory(getSrcDir(c)))
+				printResultJSON(checkNewsTreadsByCategory(getSrcDir(c)))
 				return nil
 			},
 		},
@@ -73,10 +72,10 @@ func getSrcDir(c *cli.Context) string {
 	return srcDir
 }
 
-func printResultJson(n interface{}) {
+func printResultJSON(n interface{}) {
 	prettyJSON, err := json.MarshalIndent(n, "", "  ")
 	if err != nil {
-		log.Fatal("Failed to generate json", err)
+		panic(err)
 	}
 	fmt.Printf("%s\n", string(prettyJSON))
 }
@@ -107,7 +106,7 @@ func checkLanguages(filesPath string) []checkLanguagesStr {
 		})
 
 	if err != nil {
-		log.Println(err)
+		panic(err)
 	}
 
 	l := []checkLanguagesStr{}
@@ -151,7 +150,7 @@ func checkNews(filesPath string) newsArr {
 		})
 
 	if err != nil {
-		log.Println(err)
+		panic(err)
 	}
 
 	return newsArr{Articles: articles}
@@ -187,7 +186,7 @@ func checkNewsGroup(filesPath string) []newsGroup {
 		})
 
 	if err != nil {
-		log.Println(err)
+		panic(err)
 	}
 
 	l := []newsGroup{}

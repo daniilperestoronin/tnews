@@ -1,73 +1,105 @@
 package classifier
 
 import (
-	"strings"
-
-	"github.com/jbrukh/bayesian"
-)
-
-const (
-	News    bayesian.Class = "News"
-	NotNews bayesian.Class = "NotNews"
+	"github.com/daniilperestoronin/nlp"
+	"github.com/daniilperestoronin/nlp/measures/pairwise"
+	"gonum.org/v1/gonum/mat"
 )
 
 func NewsClassifier(tx string) bool {
-	clsf := bayesian.NewClassifierTfIdf(News, NotNews)
+	testCorpus := []string{
+		"The quick brown fox jumped over the lazy dog",
+		"hey diddle diddle, the cat and the fiddle",
+	}
 
-	newsWords := []string{"tall", "rich", "handsome"}
-	notNewsWords := []string{"poor", "smelly", "ugly"}
+	var stopWords = []string{"a", "about", "above", "above", "across", "after", "afterwards", "again", "against", "all", "almost", "alone", "along", "already", "also", "although", "always", "am", "among", "amongst", "amoungst", "amount", "an", "and", "another", "any", "anyhow", "anyone", "anything", "anyway", "anywhere", "are", "around", "as", "at", "back", "be", "became", "because", "become", "becomes", "becoming", "been", "before", "beforehand", "behind", "being", "below", "beside", "besides", "between", "beyond", "bill", "both", "bottom", "but", "by", "call", "can", "cannot", "cant", "co", "con", "could", "couldnt", "cry", "de", "describe", "detail", "do", "done", "down", "due", "during", "each", "eg", "eight", "either", "eleven", "else", "elsewhere", "empty", "enough", "etc", "even", "ever", "every", "everyone", "everything", "everywhere", "except", "few", "fifteen", "fify", "fill", "find", "fire", "first", "five", "for", "former", "formerly", "forty", "found", "four", "from", "front", "full", "further", "get", "give", "go", "had", "has", "hasnt", "have", "he", "hence", "her", "here", "hereafter", "hereby", "herein", "hereupon", "hers", "herself", "him", "himself", "his", "how", "however", "hundred", "ie", "if", "in", "inc", "indeed", "interest", "into", "is", "it", "its", "itself", "keep", "last", "latter", "latterly", "least", "less", "ltd", "made", "many", "may", "me", "meanwhile", "might", "mill", "mine", "more", "moreover", "most", "mostly", "move", "much", "must", "my", "myself", "name", "namely", "neither", "never", "nevertheless", "next", "nine", "no", "nobody", "none", "noone", "nor", "not", "nothing", "now", "nowhere", "of", "off", "often", "on", "once", "one", "only", "onto", "or", "other", "others", "otherwise", "our", "ours", "ourselves", "out", "over", "own", "part", "per", "perhaps", "please", "put", "rather", "re", "same", "see", "seem", "seemed", "seeming", "seems", "serious", "several", "she", "should", "show", "side", "since", "sincere", "six", "sixty", "so", "some", "somehow", "someone", "something", "sometime", "sometimes", "somewhere", "still", "such", "system", "take", "ten", "than", "that", "the", "their", "them", "themselves", "then", "thence", "there", "thereafter", "thereby", "therefore", "therein", "thereupon", "these", "they", "thickv", "thin", "third", "this", "those", "though", "three", "through", "throughout", "thru", "thus", "to", "together", "too", "top", "toward", "towards", "twelve", "twenty", "two", "un", "under", "until", "up", "upon", "us", "very", "via", "was", "we", "well", "were", "what", "whatever", "when", "whence", "whenever", "where", "whereafter", "whereas", "whereby", "wherein", "whereupon", "wherever", "whether", "which", "while", "whither", "who", "whoever", "whole", "whom", "whose", "why", "will", "with", "within", "without", "would", "yet", "you", "your", "yours", "yourself", "yourselves"}
 
-	clsf.Learn(newsWords, News)
-	clsf.Learn(notNewsWords, NotNews)
+	vectoriser := nlp.NewCountVectoriser(stopWords...)
+	transformer := nlp.NewTfidfTransformer()
 
-	clsf.ConvertTermsFreqToTfIdf()
+	// set k (the number of dimensions following truncation) to 4
+	reducer := nlp.NewTruncatedSVD(4)
 
-	_, i, _ := clsf.LogScores(strings.Split(tx, " "))
+	lsiPipeline := nlp.NewPipeline(vectoriser, transformer, reducer)
 
-	return i == 0
+	// Transform the corpus into an LSI fitting the model to the documents in the process
+	lsi, err := lsiPipeline.FitTransform(testCorpus...)
+	if err != nil {
+		panic(err)
+	}
+
+	// run the query through the same pipeline that was fitted to the corpus and
+	// to project it into the same dimensional space
+	queryVector, err := lsiPipeline.Transform(tx)
+	if err != nil {
+		panic(err)
+	}
+
+	// iterate over document feature vectors (columns) in the LSI matrix and compare
+	// with the query vector for similarity.  Similarity is determined by the difference
+	// between the angles of the vectors known as the cosine similarity
+	highestSimilarity := -1.0
+	var matched int
+	_, docs := lsi.Dims()
+	for i := 0; i < docs; i++ {
+		similarity := pairwise.CosineSimilarity(queryVector.(mat.ColViewer).ColView(0), lsi.(mat.ColViewer).ColView(i))
+		if similarity > highestSimilarity {
+			matched = i
+			highestSimilarity = similarity
+		}
+	}
+
+	return matched == 0
 }
 
-const (
-	//Society (includes Politics, Elections, Legislation, Incidents, Crime)
-	Society bayesian.Class = "Society"
-	//Economy (includes Markets, Finance, Business)
-	Economy bayesian.Class = "Economy"
-	//Technology (includes Gadgets, Auto, Apps, Internet services)
-	Technology bayesian.Class = "Technology"
-	//Sports (includes E-Sports)
-	Sports bayesian.Class = "Sports"
-	//Entertainment (includes Movies, Music, Games, Books, Arts)
-	Entertainment bayesian.Class = "Entertainment"
-	//Science (includes Health, Biology, Physics, Genetics)
-	Science bayesian.Class = "Science"
-	//Other (news articles that don't fall into any of the above categories)
-	Other bayesian.Class = "Other"
-)
-
 func NewsGroupClassifier(tx string) string {
-	clsf := bayesian.NewClassifierTfIdf(Society, Economy, Technology, Sports, Entertainment, Science, Other)
+	testCorpus := []string{
+		"The quick brown fox jumped over the lazy dog",
+		"hey diddle diddle, the cat and the fiddle",
+		"the cow jumped over the moon",
+		"the little dog laughed to see such fun",
+		"and the dish ran away with the spoon",
+		"and the dish ran away with the spoon",
+	}
 
-	societyWords := []string{"tall", "rich", "handsome"}
-	economyWords := []string{"tall", "rich", "handsome"}
-	technologyWords := []string{"tall", "rich", "handsome"}
-	sportsWords := []string{"tall", "rich", "handsome"}
-	entertainmentWords := []string{"tall", "rich", "handsome"}
-	scienceWords := []string{"tall", "rich", "handsome"}
-	otherWords := []string{"tall", "rich", "handsome"}
+	var stopWords = []string{"a", "about", "above", "above", "across", "after", "afterwards", "again", "against", "all", "almost", "alone", "along", "already", "also", "although", "always", "am", "among", "amongst", "amoungst", "amount", "an", "and", "another", "any", "anyhow", "anyone", "anything", "anyway", "anywhere", "are", "around", "as", "at", "back", "be", "became", "because", "become", "becomes", "becoming", "been", "before", "beforehand", "behind", "being", "below", "beside", "besides", "between", "beyond", "bill", "both", "bottom", "but", "by", "call", "can", "cannot", "cant", "co", "con", "could", "couldnt", "cry", "de", "describe", "detail", "do", "done", "down", "due", "during", "each", "eg", "eight", "either", "eleven", "else", "elsewhere", "empty", "enough", "etc", "even", "ever", "every", "everyone", "everything", "everywhere", "except", "few", "fifteen", "fify", "fill", "find", "fire", "first", "five", "for", "former", "formerly", "forty", "found", "four", "from", "front", "full", "further", "get", "give", "go", "had", "has", "hasnt", "have", "he", "hence", "her", "here", "hereafter", "hereby", "herein", "hereupon", "hers", "herself", "him", "himself", "his", "how", "however", "hundred", "ie", "if", "in", "inc", "indeed", "interest", "into", "is", "it", "its", "itself", "keep", "last", "latter", "latterly", "least", "less", "ltd", "made", "many", "may", "me", "meanwhile", "might", "mill", "mine", "more", "moreover", "most", "mostly", "move", "much", "must", "my", "myself", "name", "namely", "neither", "never", "nevertheless", "next", "nine", "no", "nobody", "none", "noone", "nor", "not", "nothing", "now", "nowhere", "of", "off", "often", "on", "once", "one", "only", "onto", "or", "other", "others", "otherwise", "our", "ours", "ourselves", "out", "over", "own", "part", "per", "perhaps", "please", "put", "rather", "re", "same", "see", "seem", "seemed", "seeming", "seems", "serious", "several", "she", "should", "show", "side", "since", "sincere", "six", "sixty", "so", "some", "somehow", "someone", "something", "sometime", "sometimes", "somewhere", "still", "such", "system", "take", "ten", "than", "that", "the", "their", "them", "themselves", "then", "thence", "there", "thereafter", "thereby", "therefore", "therein", "thereupon", "these", "they", "thickv", "thin", "third", "this", "those", "though", "three", "through", "throughout", "thru", "thus", "to", "together", "too", "top", "toward", "towards", "twelve", "twenty", "two", "un", "under", "until", "up", "upon", "us", "very", "via", "was", "we", "well", "were", "what", "whatever", "when", "whence", "whenever", "where", "whereafter", "whereas", "whereby", "wherein", "whereupon", "wherever", "whether", "which", "while", "whither", "who", "whoever", "whole", "whom", "whose", "why", "will", "with", "within", "without", "would", "yet", "you", "your", "yours", "yourself", "yourselves"}
 
-	clsf.Learn(societyWords, Society)
-	clsf.Learn(economyWords, Economy)
-	clsf.Learn(technologyWords, Technology)
-	clsf.Learn(sportsWords, Sports)
-	clsf.Learn(entertainmentWords, Entertainment)
-	clsf.Learn(scienceWords, Science)
-	clsf.Learn(otherWords, Other)
+	vectoriser := nlp.NewCountVectoriser(stopWords...)
+	transformer := nlp.NewTfidfTransformer()
 
-	clsf.ConvertTermsFreqToTfIdf()
+	// set k (the number of dimensions following truncation) to 4
+	reducer := nlp.NewTruncatedSVD(4)
 
-	_, i, _ := clsf.LogScores(strings.Split(tx, " "))
+	lsiPipeline := nlp.NewPipeline(vectoriser, transformer, reducer)
 
-	switch i {
+	// Transform the corpus into an LSI fitting the model to the documents in the process
+	lsi, err := lsiPipeline.FitTransform(testCorpus...)
+	if err != nil {
+		panic(err)
+	}
+
+	// run the query through the same pipeline that was fitted to the corpus and
+	// to project it into the same dimensional space
+	queryVector, err := lsiPipeline.Transform(tx)
+	if err != nil {
+		panic(err)
+	}
+
+	// iterate over document feature vectors (columns) in the LSI matrix and compare
+	// with the query vector for similarity.  Similarity is determined by the difference
+	// between the angles of the vectors known as the cosine similarity
+	highestSimilarity := -1.0
+	var matched int
+	_, docs := lsi.Dims()
+	for i := 0; i < docs; i++ {
+		similarity := pairwise.CosineSimilarity(queryVector.(mat.ColViewer).ColView(0), lsi.(mat.ColViewer).ColView(i))
+		if similarity > highestSimilarity {
+			matched = i
+			highestSimilarity = similarity
+		}
+	}
+
+	switch matched {
 	case 0:
 		return "society"
 	case 1:
@@ -81,6 +113,6 @@ func NewsGroupClassifier(tx string) string {
 	case 5:
 		return "science"
 	default:
-		return ""
+		return "other"
 	}
 }
