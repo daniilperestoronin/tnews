@@ -1,19 +1,34 @@
 package main
 
 import (
+	"bufio"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/daniilperestoronin/tnews/classifier"
 	"github.com/daniilperestoronin/tnews/lang"
 	"github.com/daniilperestoronin/tnews/parse"
 	"github.com/urfave/cli"
+	"gonum.org/v1/gonum/mat"
+)
+
+const (
+	enStopWrds       = "./alg/corpus/en/stop_words"
+	enNewsDense      = "./alg/bin/en/news"
+	enNewsGroupDense = "./alg/bin/en/newsGroup"
+	ruStopWrds       = "./alg/corpus/ru/stop_words"
+	ruNewsDense      = "./alg/bin/ru/news"
+	ruNewsGroupDense = "./alg/bin/ru/newsGroup"
 )
 
 func cliApp() *cli.App {
+
+	nlpModels := loadNlpModels()
+
 	app := cli.NewApp()
 	app.Name = "tnews"
 	app.Usage = "news clustering"
@@ -22,7 +37,7 @@ func cliApp() *cli.App {
 	app.Commands = []cli.Command{
 		{
 			Name:  "languages",
-			Usage: "Isolate articles in English and Russian",
+			Usage: "Isolate articles in english and Russian",
 			Action: func(c *cli.Context) error {
 				printResultJSON(checkLanguages(getSrcDir(c)))
 				return nil
@@ -32,7 +47,7 @@ func cliApp() *cli.App {
 			Name:  "news",
 			Usage: "Isolate news articles",
 			Action: func(c *cli.Context) error {
-				printResultJSON(checkNews(getSrcDir(c)))
+				printResultJSON(checkNews(getSrcDir(c), nlpModels))
 				return nil
 			},
 		},
@@ -40,7 +55,7 @@ func cliApp() *cli.App {
 			Name:  "categories",
 			Usage: "Group news articles by category",
 			Action: func(c *cli.Context) error {
-				printResultJSON(checkNewsGroup(getSrcDir(c)))
+				printResultJSON(checkNewsGroup(getSrcDir(c), nlpModels))
 				return nil
 			},
 		},
@@ -48,7 +63,7 @@ func cliApp() *cli.App {
 			Name:  "threads",
 			Usage: "Group similar news into threads",
 			Action: func(c *cli.Context) error {
-				printResultJSON(checkNewsTreads(getSrcDir(c)))
+				printResultJSON(checkNewsTreads(getSrcDir(c), nlpModels))
 				return nil
 			},
 		},
@@ -56,28 +71,12 @@ func cliApp() *cli.App {
 			Name:  "top",
 			Usage: "Sort threads by their relative importance",
 			Action: func(c *cli.Context) error {
-				printResultJSON(checkNewsTreadsByCategory(getSrcDir(c)))
+				printResultJSON(checkNewsTreadsByCategory(getSrcDir(c), nlpModels))
 				return nil
 			},
 		},
 	}
 	return app
-}
-
-func getSrcDir(c *cli.Context) string {
-	srcDir := c.Args().First()
-	if srcDir == "" {
-		panic("provide source_dir")
-	}
-	return srcDir
-}
-
-func printResultJSON(n interface{}) {
-	prettyJSON, err := json.MarshalIndent(n, "", "  ")
-	if err != nil {
-		panic(err)
-	}
-	fmt.Printf("%s\n", string(prettyJSON))
 }
 
 type checkLanguagesStr struct {
@@ -127,8 +126,9 @@ type newsArr struct {
 	Articles []string `json:"articles"`
 }
 
-func checkNews(filesPath string) newsArr {
+func checkNews(filesPath string, nlpModels map[string]nlpModel) newsArr {
 	articles := []string{}
+
 	err := filepath.Walk(filesPath,
 		func(path string, info os.FileInfo, err error) error {
 			if err != nil {
@@ -140,8 +140,13 @@ func checkNews(filesPath string) newsArr {
 					panic(err)
 				}
 				article := parse.ParseArticleFromHTMLFile(string(b))
-				if lang.DetectLanguage(article.Title+article.CleanedText) == "en" {
-					if classifier.NewsClassifier(article.Title + article.CleanedText) {
+				aLang := lang.DetectLanguage(article.Title + article.CleanedText)
+				if aLang == "en" {
+					if classifier.NewsClassifier(article.Title+article.CleanedText, nlpModels["en"].News, nlpModels["en"].StopWords) {
+						articles = append(articles, info.Name())
+					}
+				} else if aLang == "ru" {
+					if classifier.NewsClassifier(article.Title+article.CleanedText, nlpModels["ru"].News, nlpModels["ru"].StopWords) {
 						articles = append(articles, info.Name())
 					}
 				}
@@ -161,7 +166,7 @@ type newsGroup struct {
 	Articles []string `json:"articles"`
 }
 
-func checkNewsGroup(filesPath string) []newsGroup {
+func checkNewsGroup(filesPath string, nlpModels map[string]nlpModel) []newsGroup {
 	nGroup := make(map[string][]string)
 
 	err := filepath.Walk(filesPath,
@@ -175,9 +180,15 @@ func checkNewsGroup(filesPath string) []newsGroup {
 					panic(err)
 				}
 				article := parse.ParseArticleFromHTMLFile(string(b))
-				if lang.DetectLanguage(article.Title+article.CleanedText) == "en" {
-					if classifier.NewsClassifier(article.Title + article.CleanedText) {
-						group := classifier.NewsGroupClassifier(article.Title + article.CleanedText)
+				aLang := lang.DetectLanguage(article.Title + article.CleanedText)
+				if aLang == "en" {
+					if classifier.NewsClassifier(article.Title+article.CleanedText, nlpModels["en"].News, nlpModels["en"].StopWords) {
+						group := classifier.NewsGroupClassifier(article.Title+article.CleanedText, nlpModels["en"].NewsGroup, nlpModels["en"].StopWords)
+						nGroup[group] = append(nGroup[group], info.Name())
+					}
+				} else if aLang == "ru" {
+					if classifier.NewsClassifier(article.Title+article.CleanedText, nlpModels["ru"].News, nlpModels["ru"].StopWords) {
+						group := classifier.NewsGroupClassifier(article.Title+article.CleanedText, nlpModels["ru"].NewsGroup, nlpModels["ru"].StopWords)
 						nGroup[group] = append(nGroup[group], info.Name())
 					}
 				}
@@ -203,10 +214,74 @@ type newsThread struct {
 	Articles []string `json:"articles"`
 }
 
-func checkNewsTreads(filesPath string) []newsThread {
+func checkNewsTreads(filesPath string, nlpModels map[string]nlpModel) []newsThread {
 	return nil
 }
 
-func checkNewsTreadsByCategory(filesPath string) []newsThread {
+func checkNewsTreadsByCategory(filesPath string, nlpModels map[string]nlpModel) []newsThread {
 	return nil
+}
+
+type nlpModel struct {
+	StopWords []string
+	News      mat.Dense
+	NewsGroup mat.Dense
+}
+
+func loadNlpModels() map[string]nlpModel {
+	return map[string]nlpModel{
+		"en": nlpModel{
+			StopWords: strings.Split(readFileAsString(enStopWrds), "\n"),
+			News:      getDenseFromBin(enNewsDense),
+			NewsGroup: getDenseFromBin(enNewsGroupDense),
+		},
+		"ru": nlpModel{
+			StopWords: strings.Split(readFileAsString(ruStopWrds), "\n"),
+			News:      getDenseFromBin(ruNewsDense),
+			NewsGroup: getDenseFromBin(ruNewsGroupDense),
+		},
+	}
+}
+
+func getDenseFromBin(fileName string) mat.Dense {
+	// open input file
+	fi, err := os.Open(fileName)
+	if err != nil {
+		panic(err)
+	}
+	// close fi on exit and check for its returned error
+	defer func() {
+		if err := fi.Close(); err != nil {
+			panic(err)
+		}
+	}()
+	// make a read buffer
+	r := bufio.NewReader(fi)
+	lsi := mat.Dense{}
+	lsi.UnmarshalBinaryFrom(r)
+	return lsi
+}
+
+func readFileAsString(fileName string) string {
+	b, err := ioutil.ReadFile(fileName)
+	if err != nil {
+		panic(err)
+	}
+	return string(b)
+}
+
+func getSrcDir(c *cli.Context) string {
+	srcDir := c.Args().First()
+	if srcDir == "" {
+		panic("provide source_dir")
+	}
+	return srcDir
+}
+
+func printResultJSON(n interface{}) {
+	prettyJSON, err := json.MarshalIndent(n, "", "  ")
+	if err != nil {
+		panic(err)
+	}
+	fmt.Printf("%s\n", string(prettyJSON))
 }
