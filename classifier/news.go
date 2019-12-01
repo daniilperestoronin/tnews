@@ -98,12 +98,10 @@ func NewsTreads(articles []*goose.Article, stopWords []string) {
 	vectoriser := nlp.NewCountVectoriser(stopWords...)
 	transformer := nlp.NewTfidfTransformer()
 
-	// set k (the number of dimensions following truncation) to 4
 	reducer := nlp.NewTruncatedSVD(100)
 
 	lsiPipeline := nlp.NewPipeline(vectoriser, transformer, reducer)
 
-	// Transform the corpus into an LSI fitting the model to the documents in the process
 	lsi, err := lsiPipeline.FitTransform(corpus...)
 	if err != nil {
 		fmt.Printf("Failed to process documents because %v", err)
