@@ -1,6 +1,9 @@
 package classifier
 
 import (
+	"fmt"
+
+	goose "github.com/advancedlogic/GoOse"
 	"github.com/daniilperestoronin/nlp"
 	"github.com/daniilperestoronin/nlp/measures/pairwise"
 	"gonum.org/v1/gonum/mat"
@@ -77,4 +80,47 @@ func NewsGroupClassifier(tx string, lsi mat.Dense, stopWords []string) string {
 	default:
 		return "other"
 	}
+}
+
+func NewsTreads(articles []*goose.Article, stopWords []string) {
+
+	corpus := []string{}
+
+	for _, article := range articles {
+		corpus = append(corpus, article.CleanedText)
+	}
+
+	vectoriser := nlp.NewCountVectoriser(stopWords...)
+	transformer := nlp.NewTfidfTransformer()
+
+	// set k (the number of dimensions following truncation) to 4
+	reducer := nlp.NewTruncatedSVD(100)
+
+	lsiPipeline := nlp.NewPipeline(vectoriser, transformer, reducer)
+
+	// Transform the corpus into an LSI fitting the model to the documents in the process
+	lsi, err := lsiPipeline.FitTransform(corpus...)
+	if err != nil {
+		fmt.Printf("Failed to process documents because %v", err)
+		return
+	}
+
+	aThread := map[int][]int{}
+
+	for ai, article := range articles {
+		aThread[ai] = []int{}
+		queryVector, err := lsiPipeline.Transform(article.CleanedText)
+		if err != nil {
+			fmt.Printf("Failed to process documents because %v", err)
+			return
+		}
+		_, docs := lsi.Dims()
+		for i := 0; i < docs; i++ {
+			if pairwise.CosineSimilarity(queryVector.(mat.ColViewer).ColView(0), lsi.(mat.ColViewer).ColView(i)) > 0.1 && i != ai {
+				aThread[ai] = append(aThread[ai], i)
+			}
+		}
+	}
+
+	fmt.Println(aThread)
 }

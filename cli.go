@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	goose "github.com/advancedlogic/GoOse"
 	"github.com/daniilperestoronin/tnews/classifier"
 	"github.com/daniilperestoronin/tnews/lang"
 	"github.com/daniilperestoronin/tnews/parse"
@@ -215,6 +216,43 @@ type newsThread struct {
 }
 
 func checkNewsTreads(filesPath string, nlpModels map[string]nlpModel) []newsThread {
+
+	enArticles := []*goose.Article{}
+	ruArticles := []*goose.Article{}
+
+	err := filepath.Walk(filesPath,
+		func(path string, info os.FileInfo, err error) error {
+			if err != nil {
+				return err
+			}
+			if info.Mode().IsRegular() {
+				b, err := ioutil.ReadFile(path)
+				if err != nil {
+					panic(err)
+				}
+				article := parse.ParseArticleFromHTMLFile(string(b))
+				aLang := lang.DetectLanguage(article.Title + article.CleanedText)
+				if aLang == "en" {
+					if classifier.NewsClassifier(article.Title+article.CleanedText, nlpModels["en"].News, nlpModels["en"].StopWords) {
+						enArticles = append(enArticles, article)
+					}
+				} else if aLang == "ru" {
+					if classifier.NewsClassifier(article.Title+article.CleanedText, nlpModels["ru"].News, nlpModels["ru"].StopWords) {
+						ruArticles = append(ruArticles, article)
+					}
+				}
+			}
+			return nil
+		})
+
+	if err != nil {
+		panic(err)
+	}
+
+	// classifier.NewsTreads(enArticles, nlpModels["en"].StopWords)
+
+	classifier.NewsTreads(ruArticles, nlpModels["ru"].StopWords)
+
 	return nil
 }
 
