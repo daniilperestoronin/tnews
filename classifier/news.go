@@ -82,6 +82,11 @@ func NewsGroupClassifier(tx string, lsi mat.Dense, stopWords []string) string {
 	}
 }
 
+type Pair struct {
+	Id         int
+	Similarity float64
+}
+
 func NewsTreads(articles []*goose.Article, stopWords []string) {
 
 	corpus := []string{}
@@ -105,10 +110,10 @@ func NewsTreads(articles []*goose.Article, stopWords []string) {
 		return
 	}
 
-	aThread := map[int][]int{}
+	aThread := map[int][]Pair{}
 
 	for ai, article := range articles {
-		aThread[ai] = []int{}
+		aThread[ai] = []Pair{}
 		queryVector, err := lsiPipeline.Transform(article.CleanedText)
 		if err != nil {
 			fmt.Printf("Failed to process documents because %v", err)
@@ -116,8 +121,9 @@ func NewsTreads(articles []*goose.Article, stopWords []string) {
 		}
 		_, docs := lsi.Dims()
 		for i := 0; i < docs; i++ {
-			if pairwise.CosineSimilarity(queryVector.(mat.ColViewer).ColView(0), lsi.(mat.ColViewer).ColView(i)) > 0.1 && i != ai {
-				aThread[ai] = append(aThread[ai], i)
+			similarity := pairwise.CosineSimilarity(queryVector.(mat.ColViewer).ColView(0), lsi.(mat.ColViewer).ColView(i))
+			if similarity > 0.1 && i != ai {
+				aThread[ai] = append(aThread[ai], Pair{Id: i, Similarity: similarity})
 			}
 		}
 	}
