@@ -126,5 +126,11 @@ func NewsTreads(articles []*goose.Article, stopWords []string) {
 		}
 	}
 
-	fmt.Println(aThread)
+	for k, v := range aThread {
+		fmt.Println(articles[k].Title)
+
+		for _, a := range v {
+			fmt.Printf("\t %s - %f \n", articles[a.Id].Title, a.Similarity)
+		}
+	}
 }
