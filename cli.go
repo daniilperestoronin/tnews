@@ -267,8 +267,70 @@ func convertToNewsThread(nThr map[string][]string) []newsThread {
 	return newsThreads
 }
 
-func checkNewsTreadsByCategory(filesPath string, nlpModels map[string]nlpModel) []newsThread {
-	return nil
+type newsGroupTreads struct {
+	Group      string       `json:"category"`
+	NewsThread []newsThread `json:"threads"`
+}
+
+func checkNewsTreadsByCategory(filesPath string, nlpModels map[string]nlpModel) []newsGroupTreads {
+
+	enNGroup := map[string][]*goose.Article{}
+	ruNGroup := map[string][]*goose.Article{}
+
+	err := filepath.Walk(filesPath,
+		func(path string, info os.FileInfo, err error) error {
+			if err != nil {
+				return err
+			}
+			if info.Mode().IsRegular() {
+				b, err := ioutil.ReadFile(path)
+				if err != nil {
+					panic(err)
+				}
+				article := parse.ParseArticleFromHTMLFile(string(b))
+				aLang := lang.DetectLanguage(article.Title + article.CleanedText)
+				if aLang == "en" {
+					if classifier.NewsClassifier(article.Title+article.CleanedText, nlpModels["en"].News, nlpModels["en"].StopWords) {
+						article.FinalURL = info.Name()
+						group := classifier.NewsGroupClassifier(article.Title+article.CleanedText, nlpModels["en"].NewsGroup, nlpModels["en"].StopWords)
+						enNGroup[group] = append(enNGroup[group], article)
+					}
+				} else if aLang == "ru" {
+					if classifier.NewsClassifier(article.Title+article.CleanedText, nlpModels["ru"].News, nlpModels["ru"].StopWords) {
+						article.FinalURL = info.Name()
+						group := classifier.NewsGroupClassifier(article.Title+article.CleanedText, nlpModels["ru"].NewsGroup, nlpModels["ru"].StopWords)
+						ruNGroup[group] = append(ruNGroup[group], article)
+					}
+				}
+			}
+			return nil
+		})
+
+	if err != nil {
+		panic(err)
+	}
+
+	l := []newsGroupTreads{}
+
+	for k, v := range enNGroup {
+
+		l = append(l,
+			newsGroupTreads{
+				Group:      k,
+				NewsThread: convertToNewsThread(classifier.NewsTreads(v, nlpModels["en"].StopWords)),
+			})
+	}
+
+	for k, v := range ruNGroup {
+
+		l = append(l,
+			newsGroupTreads{
+				Group:      k,
+				NewsThread: convertToNewsThread(classifier.NewsTreads(v, nlpModels["ru"].StopWords)),
+			})
+	}
+
+	return l
 }
 
 type nlpModel struct {
@@ -293,18 +355,15 @@ func loadNlpModels() map[string]nlpModel {
 }
 
 func getDenseFromBin(fileName string) mat.Dense {
-	// open input file
 	fi, err := os.Open(fileName)
 	if err != nil {
 		panic(err)
 	}
-	// close fi on exit and check for its returned error
 	defer func() {
 		if err := fi.Close(); err != nil {
 			panic(err)
 		}
 	}()
-	// make a read buffer
 	r := bufio.NewReader(fi)
 	lsi := mat.Dense{}
 	lsi.UnmarshalBinaryFrom(r)
