@@ -1,7 +1,7 @@
 package classifier
 
 import (
-	"fmt"
+	"sort"
 
 	goose "github.com/advancedlogic/GoOse"
 	"github.com/daniilperestoronin/nlp"
@@ -87,7 +87,7 @@ type Pair struct {
 	Similarity float64
 }
 
-func NewsTreads(articles []*goose.Article, stopWords []string) {
+func NewsTreads(articles []*goose.Article, stopWords []string) map[string][]string {
 
 	corpus := []string{}
 
@@ -104,8 +104,7 @@ func NewsTreads(articles []*goose.Article, stopWords []string) {
 
 	lsi, err := lsiPipeline.FitTransform(corpus...)
 	if err != nil {
-		fmt.Printf("Failed to process documents because %v", err)
-		return
+		panic(err)
 	}
 
 	aThread := map[int][]Pair{}
@@ -114,8 +113,7 @@ func NewsTreads(articles []*goose.Article, stopWords []string) {
 		aThread[ai] = []Pair{}
 		queryVector, err := lsiPipeline.Transform(article.CleanedText)
 		if err != nil {
-			fmt.Printf("Failed to process documents because %v", err)
-			return
+			panic(err)
 		}
 		_, docs := lsi.Dims()
 		for i := 0; i < docs; i++ {
@@ -126,11 +124,22 @@ func NewsTreads(articles []*goose.Article, stopWords []string) {
 		}
 	}
 
+	newsThread := map[string][]string{}
+
 	for k, v := range aThread {
-		fmt.Println(articles[k].Title)
+		newsThread[articles[k].Title] = []string{}
+
+		sort.SliceStable(v, func(i, j int) bool {
+			return v[i].Similarity > v[j].Similarity
+		})
+
+		newsThread[articles[k].Title] = append(newsThread[articles[k].Title], articles[k].FinalURL)
 
 		for _, a := range v {
-			fmt.Printf("\t %s - %f \n", articles[a.Id].Title, a.Similarity)
+			delete(aThread, a.Id)
+			newsThread[articles[k].Title] = append(newsThread[articles[k].Title], articles[a.Id].FinalURL)
 		}
 	}
+
+	return newsThread
 }

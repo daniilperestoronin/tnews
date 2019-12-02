@@ -11,7 +11,7 @@
             "mode": "auto",
             "program": "${workspaceFolder}",
             "env": {},
-            "args": ["languages", "./html/20191101/01/"]
+            "args": ["languages", "./html/0107/20191101/01/"]
         },
         {
             "name": "run news",
@@ -20,7 +20,7 @@
             "mode": "auto",
             "program": "${workspaceFolder}",
             "env": {},
-            "args": ["news", "./html/20191101/01/"]
+            "args": ["news", "./html/0107/20191101/01/"]
         },
         {
             "name": "run categories",
@@ -29,7 +29,7 @@
             "mode": "auto",
             "program": "${workspaceFolder}",
             "env": {},
-            "args": ["categories", "./html/20191101/01/"]
+            "args": ["categories", "./html/0107/20191101/01/"]
         },
         {
             "name": "run threads",
@@ -38,7 +38,7 @@
             "mode": "auto",
             "program": "${workspaceFolder}",
             "env": {},
-            "args": ["threads", "./html/20191101/02/"]
+            "args": ["threads", "./html/0107/20191101/02/"]
         },
         {
             "name": "run top",
@@ -47,7 +47,7 @@
             "mode": "auto",
             "program": "${workspaceFolder}",
             "env": {},
-            "args": ["top", "./html/20191101/01/"]
+            "args": ["top", "./html/0107/20191101/01/"]
         }
     ]
 }

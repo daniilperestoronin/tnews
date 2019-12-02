@@ -234,10 +234,12 @@ func checkNewsTreads(filesPath string, nlpModels map[string]nlpModel) []newsThre
 				aLang := lang.DetectLanguage(article.Title + article.CleanedText)
 				if aLang == "en" {
 					if classifier.NewsClassifier(article.Title+article.CleanedText, nlpModels["en"].News, nlpModels["en"].StopWords) {
+						article.FinalURL = info.Name()
 						enArticles = append(enArticles, article)
 					}
 				} else if aLang == "ru" {
 					if classifier.NewsClassifier(article.Title+article.CleanedText, nlpModels["ru"].News, nlpModels["ru"].StopWords) {
+						article.FinalURL = info.Name()
 						ruArticles = append(ruArticles, article)
 					}
 				}
@@ -249,11 +251,20 @@ func checkNewsTreads(filesPath string, nlpModels map[string]nlpModel) []newsThre
 		panic(err)
 	}
 
-	// classifier.NewsTreads(enArticles, nlpModels["en"].StopWords)
+	newsThreads := []newsThread{}
 
-	classifier.NewsTreads(ruArticles, nlpModels["ru"].StopWords)
+	newsThreads = append(newsThreads, convertToNewsThread(classifier.NewsTreads(enArticles, nlpModels["en"].StopWords))...)
+	newsThreads = append(newsThreads, convertToNewsThread(classifier.NewsTreads(ruArticles, nlpModels["ru"].StopWords))...)
 
-	return nil
+	return newsThreads
+}
+
+func convertToNewsThread(nThr map[string][]string) []newsThread {
+	newsThreads := []newsThread{}
+	for k, v := range nThr {
+		newsThreads = append(newsThreads, newsThread{Title: k, Articles: v})
+	}
+	return newsThreads
 }
 
 func checkNewsTreadsByCategory(filesPath string, nlpModels map[string]nlpModel) []newsThread {
