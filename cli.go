@@ -314,10 +314,19 @@ func checkNewsTreadsByCategory(filesPath string, nlpModels map[string]nlpModel) 
 
 	for k, v := range enNGroup {
 
+		nThreads := []newsThread{}
+
+		nThreads = append(nThreads, convertToNewsThread(classifier.NewsTreads(v, nlpModels["en"].StopWords))...)
+
+		if ruNGroup[k] != nil {
+			nThreads = append(nThreads, convertToNewsThread(classifier.NewsTreads(ruNGroup[k], nlpModels["ru"].StopWords))...)
+			delete(ruNGroup, k)
+		}
+
 		l = append(l,
 			newsGroupTreads{
 				Group:      k,
-				NewsThread: convertToNewsThread(classifier.NewsTreads(v, nlpModels["en"].StopWords)),
+				NewsThread: nThreads,
 			})
 	}
 
